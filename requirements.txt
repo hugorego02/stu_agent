@@ -1,0 +1,7 @@
+agno>=0.2.0
+openai>=1.35.7
+python-dotenv>=1.0.1
+requests>=2.32.3
+pytz>=2024.1
+pandas>=2.2.2
+uvicorn>=0.30.1
