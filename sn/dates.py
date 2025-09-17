@@ -4,7 +4,6 @@ import re
 from typing import Tuple
 from core.env import LOCAL_TZ
 
-
 def _utc_range(keyword: str) -> Tuple[str, str]:
     tz = pytz.timezone(LOCAL_TZ)
     now = datetime.now(tz)
@@ -75,7 +74,6 @@ def _utc_range(keyword: str) -> Tuple[str, str]:
         return f"{field}BETWEEN{start_utc}@{end_utc}"
 
     return to_utc(start), to_utc(end)
-
 
 def _between_clause(field: str, start_utc: str, end_utc: str) -> str:
     return f"{field}BETWEEN{start_utc}@{end_utc}"

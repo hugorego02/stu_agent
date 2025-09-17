@@ -2,7 +2,6 @@ from typing import Dict, List, Tuple, Any
 from .vocab import _safe
 from .dates import _utc_range, _between_clause
 
-
 def _mk_filter(field: str, operator: str, value: Any) -> str:
     field = field.strip()
     op = _safe(operator)
@@ -16,7 +15,6 @@ def _mk_filter(field: str, operator: str, value: Any) -> str:
     if op in ("LIKE", "NOT LIKE", "STARTSWITH", "ENDSWITH"):
         return f"{field}{op}{value}"
     return f"{field}{op}{value}"
-
 
 def build_incident_query(
     period: str = "",

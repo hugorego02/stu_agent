@@ -1,0 +1,109 @@
+Project Structure Explanation
+
+app.py
+
+Entry point of the system.
+
+Starts the web API (Agno Playground).
+
+Registers the agent so users can chat with it.
+
+Port can be changed here (default is 7777).
+
+core/
+
+env.py
+
+Loads .env variables (ServiceNow URL, username, password, API key, timezone).
+
+Creates the HTTP session with login and headers.
+
+Exposes constants like SN_BASE, SN_USER, SN_PASS, LOCAL_TZ, TIMEOUT.
+
+http.py
+
+Central place for HTTP GET requests to ServiceNow.
+
+Handles errors and returns JSON results.
+
+sn/ (ServiceNow logic)
+
+vocab.py
+
+Defines ServiceNow vocabulary and operators.
+
+Contains known fields and valid operations (like “is”, “contains”, “between”).
+
+Ensures only safe operators are used.
+
+utils.py
+
+Helper functions.
+
+For example: format reference fields into text (display_value).
+
+Makes results easier to read.
+
+dates.py
+
+Converts natural time periods (like “today”, “last week”, “this month”) into UTC ranges.
+
+Returns start and end dates.
+
+Used for building queries with time filters.
+
+query_builder.py
+
+Builds the sysparm_query string used in ServiceNow.
+
+Turns filters into queries (ex: stateIN1,2,3, caller_idLIKEjohn).
+
+Combines period, filters, and sort order.
+
+api.py
+
+Access layer to ServiceNow.
+
+Functions to query tables, get stats, or find users.
+
+Uses core.env (session, credentials) and core.http.
+
+nlu/ (Natural Language Understanding)
+
+states.py
+
+Maps words like “open”, “in progress”, “on hold” to ServiceNow states.
+
+Detects and normalizes state values from text.
+
+groups.py
+
+Handles group synonyms (“desktop team” → “DESKTOP SERVICES”).
+
+Finds the correct assignment group in ServiceNow.
+
+parse.py
+
+Main NLU parser.
+
+Turns natural language into filters (state, group, period, user).
+
+Example: “open tickets this week for desktop team” → structured query.
+
+agent/
+
+system_prompt.py
+
+Defines system instructions for the agent.
+
+Tells the model how to answer, what limits to follow, and gives examples.
+
+setup.py
+
+Creates the Agno agent.
+
+Defines model, memory (SQLite), and tools (nlu parser, query builder, ServiceNow API functions).
+
+Sets history length and session ID.
+
+Stores conversation memory in data/agent.db.

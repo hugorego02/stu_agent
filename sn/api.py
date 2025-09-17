@@ -26,7 +26,6 @@ def sn_table_query(
     rows = _get(url, params)
     return [_normalize_refs(r) for r in rows]
 
-
 def sn_stats_query(
     table: str,
     query: str = "",
@@ -47,7 +46,6 @@ def sn_stats_query(
         params["sysparm_having"] = having
     return _get(url, params)
 
-
 def sn_find_user(name_like: str):
     rows = sn_table_query(
         table="sys_user",
@@ -60,3 +58,30 @@ def sn_find_user(name_like: str):
     u = rows[0]
     from .utils import _dv
     return {"sys_id": u.get("sys_id"), "name": _dv(u.get("name"))}
+
+# --- Melhorado: tenta nome EXATO primeiro; se não achar, usa LIKE ---
+def sn_find_group(name_like: str):
+    # 1) exato
+    rows = sn_table_query(
+        table="sys_user_group",
+        query=f"name={name_like}",
+        fields="sys_id,name",
+        limit=1
+    )
+    if rows:
+        g = rows[0]
+        from .utils import _dv
+        return {"sys_id": g.get("sys_id"), "name": _dv(g.get("name"))}
+
+    # 2) like
+    rows = sn_table_query(
+        table="sys_user_group",
+        query=f"nameLIKE{name_like}",
+        fields="sys_id,name",
+        limit=1
+    )
+    if not rows:
+        return {"sys_id": None, "name": "none"}
+    g = rows[0]
+    from .utils import _dv
+    return {"sys_id": g.get("sys_id"), "name": _dv(g.get("name"))}
