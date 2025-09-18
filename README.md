@@ -1,4 +1,9 @@
-Project tree overview
+ServiceNow Incident Agent
+
+A conversational agent for querying and analyzing ServiceNow incidents in natural language.
+Built with Python, it uses Agno Playground, integrates with the ServiceNow API, and can interpret English questions about incidents (counts, listings, group statistics, etc.).
+
+📂 Project Structure
 servicenow_agent/
 ├─ app.py
 ├─ core/
@@ -18,130 +23,169 @@ servicenow_agent/
    ├─ system_prompt.py
    └─ setup.py
 
-What each part does
+⚙️ Components
 app.py
 
 Entry point of the system.
 
-Starts the Agno Playground web API and registers your agent to chat.
+Starts the Agno Playground web API.
 
-If you want to change the port (default 7777), do it here.
+Registers the agent defined in agent/setup.py.
+
+Default port: 7777 (can be changed).
 
 core/
 env.py
 
-Loads .env variables (SN_BASE_URL, SN_USER, SN_PASS, OPENAI_API_KEY, TZ).
+Loads environment variables from .env:
 
-Creates the HTTP session (requests.Session) with auth and headers.
+SN_BASE_URL, SN_USER, SN_PASS, OPENAI_API_KEY, TZ.
 
-Exposes constants: SN_BASE, SN_USER, SN_PASS, LOCAL_TZ, TIMEOUT, session.
+Creates HTTP session (requests.Session) with authentication and headers.
+
+Exposes constants:
+
+SN_BASE, SN_USER, SN_PASS, LOCAL_TZ, TIMEOUT, session.
 
 http.py
 
-Central _get(...) function for ServiceNow HTTP calls.
+Core _get(url, params) function for ServiceNow GET calls.
 
-Handles errors and returns the JSON result.
+Handles errors and returns data['result'].
 
-sn/ (“ServiceNow”—everything that talks directly to the API or builds queries)
+sn/ (ServiceNow API & Query Layer)
 vocab.py
 
-ServiceNow vocabulary and operators:
+ServiceNow vocabulary:
 
-REF_FIELDS, KNOWN_FIELDS (common/allowed fields).
+REF_FIELDS: reference fields.
 
-OP (maps “is”, “contains”, “between”, etc.).
+KNOWN_FIELDS: supported fields for filters.
 
-_safe(op) ensures a valid operator.
+OP: maps natural operators (is, contains, between) → ServiceNow operators (=, LIKE, BETWEEN).
+
+_safe(op): ensures only valid operators are used.
 
 utils.py
 
-Convenience helpers:
+_dv(value): extracts display_value or "none".
 
-_dv(...) gets display_value from reference fields.
-
-_normalize_refs(row) turns references into “pretty” text.
+_normalize_refs(row): turns reference fields into human-readable text.
 
 dates.py
 
-Converts natural periods into a UTC range: “today”, “last week”, “this month”…
+Converts natural periods into UTC ranges:
 
-Returns (start_utc, end_utc) and helps build a BETWEEN clause.
+Example: "today", "last week", "this month".
+
+Returns (start_utc, end_utc) and BETWEEN clause.
 
 query_builder.py
 
-Builds sysparm_query:
+Builds sysparm_query string combining filters and periods.
 
-_mk_filter(field, op, value) → stateIN1,2,3, caller_idLIKEjohn, etc.
+_mk_filter(field, op, value) → incident_stateIN1,2,3,4, caller_idLIKEjohn.
 
-build_incident_query(period, date_field, filters, order_by_desc) joins everything with ^.
+build_incident_query(...) joins all filters with ^.
 
 api.py
 
-ServiceNow access layer:
+ServiceNow API access layer:
 
-sn_table_query(...) → list records from a table.
+sn_table_query(...) → query a table.
 
-sn_stats_query(...) → stats/counts.
+sn_stats_query(...) → counts/aggregations.
 
-sn_find_user(...) → resolve a user by name.
+sn_find_user(...) → resolve user by name.
 
-Uses core.env (session/creds) + core.http._get.
+Uses core.env (session/credentials) + core.http._get.
 
-nlu/ (“natural language understanding”)
+nlu/ (Natural Language Understanding)
 states.py
 
-Rules to detect states (“open/new/in progress/on hold/reopened…”).
+Maps synonyms like “open”, “in progress”, “on hold” → official ServiceNow states.
 
-_extract_states(text) returns normalized state values.
+_extract_states(text) → returns normalized states.
+
+Converts states into numeric codes used in ServiceNow (1=New, 2=In Progress, 3=On Hold, 4=Reopened).
 
 groups.py
 
-Maps group synonyms (“desktop team” → “DESKTOP SERVICES”).
+Maps synonyms like “desktop team” → DESKTOP SERVICES.
 
-_extract_group_name(text) tries to find the mentioned team.
+resolve_group(...) finds official names/sys_ids.
 
-sn_find_group(name_like) resolves the group sys_id in ServiceNow.
+extract_groups(...) supports multiple groups in one query.
 
 parse.py
 
-Natural language → search filters:
+Main NLU parser.
 
-nl_to_filters(text) returns { period: "", filters: {...} }.
+nl_to_filters(text) converts natural language into filters and period.
 
-Rule: if the user says “open”, map to open states; if a team is mentioned, resolve assignment_group.
+Rules:
+
+Defaults to open incidents (incident_state IN {1,2,3,4} AND active=true) if no state mentioned.
+
+Resolves groups, states, people, and dates.
+
+Returns { "period": ..., "filters": {...} }.
 
 agent/
 system_prompt.py
 
-System prompt: agent instructions (reply only in English, how to answer, examples, list limits, etc.).
+System instructions for the agent:
+
+Always reply in English.
+
+Show applied filters in the response.
+
+Limit listings (10–20 items).
+
+Default to open incidents if state not specified.
+
+Use official group names and sys_ids.
+
+Sort results by most recent.
 
 setup.py
 
-Creates the Agno agent:
+Configures the Agno Agent:
 
-Defines the model (OpenAI), memory (SqliteStorage), and the tools the agent can call:
-nl_to_filters, sn_find_group, sn_table_query, sn_stats_query, sn_find_user, build_incident_query.
+Model: OpenAIChat (GPT-based).
 
-Configures history (turn count, session_id, etc.).
+Memory: SQLite (data/agent.db) for persistent chat history.
 
-Memory lives in data/agent.db (SQLite) to let the agent remember conversation context.
+Tools:
 
-Question flow (step by step)
+nl_to_filters
 
-The user asks in the Playground (via app.py).
+sn_find_group
 
-The agent (agent/setup.py) receives the text.
+sn_table_query
 
-The agent calls nl_to_filters(...) (NLU) to turn the sentence into filters (state, group, etc.).
+sn_stats_query
 
-If there’s a team, sn_find_group(...) resolves the assignment_group sys_id.
+sn_find_user
 
-build_incident_query(...) builds the sysparm_query (period + filters + ORDERBYDESC).
+build_incident_query
 
-The agent calls sn_table_query(...) or sn_stats_query(...) (in sn/api.py).
+Can optionally clear all history with clear_all_history().
 
-sn/api.py uses core/http.py + core/env.py to make the ServiceNow request.
+🔄 Question Flow
 
-sn/utils.py normalizes display_values before returning.
+User asks a question in Playground (via app.py).
 
-The agent formats the response according to the rules in system_prompt.py.
+The agent (agent/setup.py) processes it.
+
+nl_to_filters(...) parses the text into structured filters.
+
+If a group is mentioned, sn_find_group(...) resolves the sys_id.
+
+build_incident_query(...) builds the sysparm_query.
+
+Agent executes sn_table_query(...) or sn_stats_query(...).
+
+sn/utils.py normalizes results (display values).
+
+Agent formats the answer according to system_prompt.py.
