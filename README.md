@@ -6,6 +6,8 @@ Built with Python, it uses Agno Playground, integrates with the ServiceNow API, 
 📂 Project Structure
 servicenow_agent/
 ├─ app.py
+├─ data/
+│  └─ group_cache.json          # ← auto-filled cache for group sys_ids
 ├─ core/
 │  ├─ env.py
 │  └─ http.py
@@ -14,14 +16,15 @@ servicenow_agent/
 │  ├─ utils.py
 │  ├─ dates.py
 │  ├─ query_builder.py
-│  └─ api.py
+│  ├─ api.py
+│  └─ reports.py                # ← grouped reports/utilities (e.g., open incidents by group)
 ├─ nlu/
 │  ├─ states.py
-│  ├─ groups.py
+│  ├─ groups.py                 # ← hybrid group resolver: FIXED sys_ids + cache + LIKE fallback
 │  └─ parse.py
 └─ agent/
    ├─ system_prompt.py
-   └─ setup.py
+   └─ setup.py                  # ← now uses nlu.groups.resolve_group (not sn_find_group)
 
 ⚙️ Components
 app.py

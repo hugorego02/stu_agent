@@ -1,18 +1,19 @@
 import re
-from typing import Optional, Dict, Tuple
-from sn.api import sn_table_query, sn_find_group
+from typing import Optional, Dict
+from sn.api import sn_table_query
 from sn.utils import _dv
 
-# Mapa de sinônimos → nome OFICIAL do grupo
+# Cache local para evitar múltiplas chamadas repetidas
+_GROUP_CACHE: Dict[str, Dict[str, str]] = {}
+
+# Sinônimos → nome oficial
 GROUP_SYNONYMS: Dict[str, str] = {
-    # Desktop
     "desktop team": "DESKTOP SERVICES",
     "desktop": "DESKTOP SERVICES",
     "desktop services": "DESKTOP SERVICES",
     "workplace": "DESKTOP SERVICES",
     "it support": "DESKTOP SERVICES",
 
-    # Service/Help Desk & Tiers
     "service desk": "L1 SERVICE DESK",
     "help desk": "L1 SERVICE DESK",
     "l1 service desk": "L1 SERVICE DESK",
@@ -23,97 +24,55 @@ GROUP_SYNONYMS: Dict[str, str] = {
     "tier 3": "TIER 3",
     "tier3": "TIER 3",
 
-    # AV / Media
     "av": "AV / MEDIA SERVICES",
     "media services": "AV / MEDIA SERVICES",
     "av / media services": "AV / MEDIA SERVICES",
 
-    # Applications
     "ent applications": "ENT APPLICATIONS",
     "enterprise applications": "ENT APPLICATIONS",
     "applications team": "ENT APPLICATIONS",
 
-    # Network
     "network": "NETWORK SERVICES",
     "network team": "NETWORK SERVICES",
     "network services": "NETWORK SERVICES",
 
-    # Security
     "security": "SECURITY - ADMIN",
     "security admin": "SECURITY - ADMIN",
     "security - admin": "SECURITY - ADMIN",
     "security itil": "SECURITY - ITIL Members",
     "security - itil members": "SECURITY - ITIL Members",
 
-    # Outros
     "escalations": "ESCALATIONS",
     "facilities": "FACILITIES",
 }
 
-# Padrões adicionais para frases livres
-_TEAM_FALLBACK_PATTERNS = [
-    r"\b([a-z][a-z0-9 _-]+?)\s+team\b",   # "X team" → captura X
-    r"\bservice desk\b",
-    r"\bdesktop\b",
-    r"\bworkplace\b",
-    r"\bit support\b",
-]
-
-def _extract_group_hint(text: str) -> str:
-    """Retorna um hint textual (user wording) que será mapeado a um nome oficial."""
-    tl = text.lower()
-
-    # 1) Sinônimos diretos
-    for k, official in GROUP_SYNONYMS.items():
-        if k in tl:
-            return official
-
-    # 2) "X team"
-    m = re.search(_TEAM_FALLBACK_PATTERNS[0], text, flags=re.I)
-    if m:
-        # Tentativa de mapear "X team" via sinônimo (ex.: "desktop team" -> DESKTOP SERVICES)
-        x = m.group(1).strip().lower()
-        candidate = f"{x} team"
-        if candidate in GROUP_SYNONYMS:
-            return GROUP_SYNONYMS[candidate]
-        # Se não houver sinônimo explícito, devolve o termo bruto para tentativa de LIKE
-        return x
-
-    # 3) Padrões soltos
-    for pat in _TEAM_FALLBACK_PATTERNS[1:]:
-        if re.search(pat, text, flags=re.I):
-            flat = re.sub(r"\\b", "", pat).replace("\\", "").strip()
-            # Se houver sinônimo, usa oficial
-            if flat in GROUP_SYNONYMS:
-                return GROUP_SYNONYMS[flat]
-            return flat
-
-    return ""
-
-
 def resolve_group(text: str) -> Optional[Dict[str, str]]:
     """
-    Resolve um grupo a partir do texto:
-    - Aplica sinônimos → nome oficial (preferencial).
-    - Busca no ServiceNow por nome EXATO; se não achar, faz LIKE.
-    - Retorna {"sys_id": ..., "name": <OFICIAL display_value>}.
+    Resolve nome → sys_id oficial do grupo.
+    Usa cache, sinônimos e fallback LIKE.
+    Retorna {"sys_id": ..., "name": <display_value>}
     """
-    hint = _extract_group_hint(text)
-    if not hint:
-        return None
+    tl = text.lower().strip()
 
-    # 1) Tenta exato primeiro
+    # 1) Cache direto
+    if tl in _GROUP_CACHE:
+        return _GROUP_CACHE[tl]
+
+    # 2) Sinônimos
+    official = GROUP_SYNONYMS.get(tl, text)
+
+    # 3) Tenta exato
     rows = sn_table_query(
         table="sys_user_group",
-        query=f"name={hint}",
+        query=f"name={official}",
         fields="sys_id,name",
         limit=1
     )
     if not rows:
-        # 2) Fallback LIKE se veio algo não canônico
+        # 4) Fallback LIKE
         rows = sn_table_query(
             table="sys_user_group",
-            query=f"nameLIKE{hint}",
+            query=f"nameLIKE{official}",
             fields="sys_id,name",
             limit=1
         )
@@ -121,4 +80,8 @@ def resolve_group(text: str) -> Optional[Dict[str, str]]:
         return None
 
     g = rows[0]
-    return {"sys_id": g.get("sys_id"), "name": _dv(g.get("name"))}
+    resolved = {"sys_id": g.get("sys_id"), "name": _dv(g.get("name"))}
+
+    # Cacheia para próximas vezes
+    _GROUP_CACHE[tl] = resolved
+    return resolved

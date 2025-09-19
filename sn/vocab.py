@@ -4,19 +4,18 @@ from typing import Any
 REF_FIELDS = {
     "caller_id", "assignment_group", "assigned_to", "category", "subcategory",
     "cmdb_ci", "parent", "parent_incident", "problem_id", "company",
-    # trocado: remover u_service/u_service_offering e usar os oficiais
     "service", "service_offering",
     "origin", "opened_by", "closed_by",
     "location", "requested_for", "request", "change_request"
 }
 
-# Campos conhecidos (podemos passar qualquer um, mas isto guia validações/heurísticas)
+# Campos conhecidos
 KNOWN_FIELDS = {
     "number", "short_description", "description",
     # datas
     "opened_at", "sys_created_on", "sys_updated_on", "resolved_at", "closed_at",
     # status
-    "incident_state", "state", "active",
+    "incident_state", "active",
     # prioridade/impacto/etc.
     "priority", "impact", "urgency", "severity",
     # categorização
@@ -49,8 +48,11 @@ OP = {
     "contains": "LIKE",
     "not contains": "NOT LIKE",
     "starts with": "STARTSWITH",
-    "ends with": "ENDSWITH"
+    "ends with": "ENDSWITH",
+    "relative before": "RELATIVELE",
+    "relative after": "RELATIVEGE"
 }
+
 
 def _safe(op: str) -> str:
     return OP.get(op.strip().lower(), "=")

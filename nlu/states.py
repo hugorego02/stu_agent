@@ -1,43 +1,61 @@
 import re
-from typing import List, Set, Iterable
+from typing import List, Dict, Set
 
-# Mapeamento padrão ServiceNow (Incident)
-STATE_TO_CODE = {
-    "New": "1",
-    "In Progress": "2",
-    "On Hold": "3",
-    "Reopened": "4",
-    # 5 (Awaiting Caller) / 8 (Canceled) etc. variam por implementação,
-    "Resolved": "6",
-    "Closed": "7",
-    "Canceled": "8",
+# -------------------------
+# Oficial states (nome + código)
+# -------------------------
+STATE_MAP: Dict[str, Dict] = {
+    "New": {"code": "1", "aliases": ["new", "just opened"]},
+    "In Progress": {"code": "2", "aliases": ["in progress", "working", "active work"]},
+    "On Hold": {"code": "3", "aliases": ["on hold", "waiting", "pending"]},
+    "Reopened": {"code": "4", "aliases": ["reopen", "reopened", "again"]},
+    "Resolved": {"code": "6", "aliases": ["resolved", "fixed", "done", "completed"]},
+    "Closed": {"code": "7", "aliases": ["closed", "finished", "terminated"]},
+    "Canceled": {"code": "8", "aliases": ["canceled", "cancelled", "aborted"]},
 }
 
 OPEN_STATES: Set[str] = {"New", "In Progress", "On Hold", "Reopened"}
 
-STATE_SYNONYMS = {
-    r"\bopen\b|\bstill open\b": OPEN_STATES,  # "opened" removido (não é estado)
-    r"\bnew\b": {"New"},
-    r"\bin[\s-]?progress\b": {"In Progress"},
-    r"\bon[\s-]?hold\b|\bwaiting\b|\bpending\b": {"On Hold"},
-    r"\breopened?\b": {"Reopened"},
-    r"\bresolved\b": {"Resolved"},
-    r"\bclosed?\b": {"Closed"},
-    r"\bcancel(l)?ed\b": {"Canceled"},
-}
+# Estados resolvidos/fechados/cancelados
+RESOLVED_STATES: Set[str] = {"Resolved", "Closed", "Canceled"}
+
+# -------------------------
+# Utils
+# -------------------------
+def _normalize_text(text: str) -> str:
+    return re.sub(r"\s+", " ", text.lower().strip())
+
 
 def _extract_states(text: str) -> List[str]:
-    text_l = text.lower()
-    found: set = set()
-    for pattern, canon in STATE_SYNONYMS.items():
-        if re.search(pattern, text_l):
-            found |= set(canon)
-    return list(found)
+    """
+    Retorna nomes oficiais de estados encontrados no texto.
+    Ex: "show resolved incidents" → ["Resolved"]
+    """
+    tl = _normalize_text(text)
+    found: List[str] = []
 
-def states_to_codes(states: Iterable[str]) -> List[str]:
-    codes = []
-    for s in states:
-        code = STATE_TO_CODE.get(s)
-        if code:
-            codes.append(code)
+    for official, data in STATE_MAP.items():
+        # Match no nome oficial
+        if official.lower() in tl:
+            found.append(official)
+            continue
+
+        # Match nos aliases
+        for alias in data["aliases"]:
+            if alias in tl:
+                found.append(official)
+                break
+
+    return list(set(found))  # remove duplicatas
+
+
+def states_to_codes(states: List[str]) -> List[str]:
+    """
+    Converte nomes oficiais de estados em códigos numéricos.
+    Ex: ["Resolved", "Closed"] → ["6", "7"]
+    """
+    codes: List[str] = []
+    for st in states:
+        if st in STATE_MAP:
+            codes.append(STATE_MAP[st]["code"])
     return codes
